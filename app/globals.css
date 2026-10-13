@@ -3,18 +3,27 @@
 :root {
   --background: #000000;
   --foreground: #ffffff;
+  --accent: #ee4f28;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-inter);
 }
 
 
 a, button {
   cursor: pointer !important;
+}
+
+/* !important so these beat the blanket `a, button { cursor: pointer }` above. */
+.cursor-arrow-left {
+  cursor: w-resize !important;
+}
+
+.cursor-arrow-right {
+  cursor: e-resize !important;
 }
 
 html,
@@ -26,9 +35,21 @@ body {
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-inter), sans-serif;
+  font-weight: 300;
+  /* Inherits, so it improves line breaking everywhere — no orphans on the last line. */
+  text-wrap: pretty;
 }
 
 .overflow-x-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
   display: none;
 }

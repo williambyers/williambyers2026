@@ -1,185 +1,343 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import Image from 'next/image';
 import { AnimatePresence, motion } from 'motion/react';
-import { projects, type Project, type CaseStudyImage } from '@/lib/projects';
+import { projects, type Project } from '@/lib/projects';
+
+
+function projectTags(project: Project) {
+  return (project.tags ?? project.subtitle.split('/').map((t) => t.trim())).join(', ');
+}
 
 function ProjectCard({ project, onClick }: { project: Project; onClick: () => void }) {
-  const [hovered, setHovered] = useState(false);
-  const tags = project.tags ?? project.subtitle.split('/').map((t) => t.trim());
-
   return (
     <button
       onClick={onClick}
       onMouseEnter={() => {
-        setHovered(true);
         project.caseStudy.images.forEach((img) => {
           const el = new window.Image();
           el.src = img.src;
         });
       }}
-      onMouseLeave={() => setHovered(false)}
-      className="group text-left cursor-pointer"
+      className="group text-left block w-full"
     >
-      <div className="relative w-full overflow-hidden bg-neutral-800 mb-3 rounded-md">
-        {project.coverImage ? (
+      <div className="relative w-full aspect-[16/10] overflow-hidden bg-neutral-200">
+        {project.coverImage && (
           <Image
             src={project.coverImage}
             alt={project.title}
-            width={0}
-            height={0}
-            sizes="(max-width: 768px) 50vw, (max-width: 1024px) 33vw, 20vw"
-            className="w-full h-auto transition-opacity duration-300 group-hover:opacity-70"
+            fill
+            sizes="(max-width: 768px) 100vw, 50vw"
+            className="object-cover transition-opacity duration-500 group-hover:opacity-85"
             priority
           />
-        ) : (
-          <div className="aspect-[4/3] w-full bg-neutral-900" />
         )}
-
-        <AnimatePresence>
-          {hovered && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.85 }}
-              transition={{ type: 'spring', stiffness: 380, damping: 26 }}
-              style={{ transformOrigin: 'top right' }}
-              className="absolute top-2 right-2 flex flex-wrap justify-end gap-1 pointer-events-none"
-            >
-              {tags.map((tag) => (
-                <span key={tag} className="bg-black/60 backdrop-blur-sm text-white text-[11px] px-2 py-1 rounded-md whitespace-nowrap">
-                  {tag}
-                </span>
-              ))}
-            </motion.div>
-          )}
-        </AnimatePresence>
       </div>
-      <p className="text-[14px] text-white font-medium mb-1">{project.title}</p>
-      <p className="text-[13px] text-neutral-500 leading-snug">{project.caseStudy.tagline}</p>
+
+      <div className="mt-2 flex items-baseline justify-between gap-6">
+        <span className="text-[14px] text-white">{project.title}</span>
+        <span className="text-[14px] text-neutral-500 text-right">{projectTags(project)}</span>
+      </div>
     </button>
   );
 }
 
-function groupImages(images: CaseStudyImage[]): Array<CaseStudyImage | [CaseStudyImage, CaseStudyImage]> {
-  const groups: Array<CaseStudyImage | [CaseStudyImage, CaseStudyImage]> = [];
-  let i = 0;
-  while (i < images.length) {
-    if (images[i].layout === 'half' && i + 1 < images.length && images[i + 1].layout === 'half') {
-      groups.push([images[i], images[i + 1]]);
-      i += 2;
-    } else {
-      groups.push(images[i]);
-      i++;
-    }
-  }
-  return groups;
+// How far one wheel tick sends the strip. Pairs with the low lerp in the tick loop:
+// damped easing for smoothness, extra distance per gesture for speed.
+const WHEEL_TRAVEL = 1.9;
+
+const FADE_EASE: [number, number, number, number] = [0.22, 1, 0.36, 1];
+const SLIDE_EASE: [number, number, number, number] = [0.76, 0, 0.24, 1];
+
+const FADE = { duration: 0.38, ease: FADE_EASE };
+const SLIDE = { duration: 0.65, ease: SLIDE_EASE };
+
+/**
+ * Dynamic variants, driven by AnimatePresence's `custom`. They have to be functions:
+ * an exiting element keeps the props it was last rendered with, so a plain prop would
+ * still read `false` on the viewer being replaced. `custom` is evaluated at exit time.
+ *
+ * Switching: outgoing travels left while the next arrives from the right — one scroll.
+ * Opening/closing: a soft fade, with no sideways movement.
+ */
+const viewerVariants = {
+  enter: (switching: boolean) =>
+    switching ? { x: '100%', opacity: 1, scale: 1 } : { x: 0, opacity: 0, scale: 0.985 },
+  center: (switching: boolean) => ({
+    x: 0,
+    opacity: 1,
+    scale: 1,
+    transition: switching ? SLIDE : FADE,
+  }),
+  exit: (switching: boolean) =>
+    switching
+      ? { x: '-100%', opacity: 1, scale: 1, transition: SLIDE }
+      : { x: 0, opacity: 0, scale: 0.99, transition: FADE },
+};
+
+function ProjectInfo({ project }: { project: Project }) {
+  return (
+    <>
+      {project.caseStudy.year && (
+        <p className="text-[14px] text-white mb-4 md:mb-8">{project.caseStudy.year}</p>
+      )}
+
+      <p className="text-[14px] text-white leading-relaxed">{project.caseStudy.tagline}</p>
+
+      {project.website && (
+        <a
+          href={project.website}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-block mt-4 md:mt-8 text-[14px] text-white hover:opacity-70 transition-opacity"
+        >
+          Website →
+        </a>
+      )}
+    </>
+  );
 }
 
-function ProjectOverlay({ project, onClose }: { project: Project; onClose: () => void }) {
-  const overlayRef = useRef<HTMLDivElement>(null);
-  const imageGroups = groupImages(project.caseStudy.images);
-  const tags = project.tags ?? project.subtitle.split('/').map((t) => t.trim());
+function ProjectViewer({
+  project,
+  nextProject,
+  isSwitching,
+  onNext,
+  onClose,
+}: {
+  project: Project;
+  nextProject: Project;
+  isSwitching: boolean;
+  onNext: () => void;
+  onClose: () => void;
+}) {
+  const images = useMemo(
+    () =>
+      project.caseStudy.images.length
+        ? project.caseStudy.images
+        : project.coverImage
+          ? [{ src: project.coverImage, alt: project.title }]
+          : [],
+    [project],
+  );
 
-  useEffect(() => {
-    const el = overlayRef.current;
-    if (!el) return;
-    const stop = (e: WheelEvent) => e.stopPropagation();
-    el.addEventListener('wheel', stop, { passive: true });
-    return () => el.removeEventListener('wheel', stop);
-  }, []);
+  const scrollerRef = useRef<HTMLDivElement>(null);
+  const targetRef = useRef(0);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
     };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
+
+  // Vertical wheel drives horizontal travel, eased toward a target so it glides.
+  useEffect(() => {
+    const el = scrollerRef.current;
+    if (!el) return;
+
+    let raf = 0;
+    let running = false;
+
+    const tick = () => {
+      const delta = targetRef.current - el.scrollLeft;
+      if (Math.abs(delta) < 0.5) {
+        el.scrollLeft = targetRef.current;
+        running = false;
+        return;
+      }
+      // Low factor = smooth, damped glide; WHEEL_TRAVEL below buys back the speed.
+      el.scrollLeft += delta * 0.06;
+      raf = requestAnimationFrame(tick);
+    };
+
+    const onWheel = (e: WheelEvent) => {
+      e.stopPropagation(); // Lenis is listening underneath
+      // Below md the strip stacks and scrolls vertically — leave that to the browser.
+      if (!window.matchMedia('(min-width: 768px)').matches) return;
+      if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
+      e.preventDefault();
+
+      const max = el.scrollWidth - el.clientWidth;
+      targetRef.current = Math.min(
+        Math.max(targetRef.current + e.deltaY * WHEEL_TRAVEL, 0),
+        max,
+      );
+
+      if (!running) {
+        running = true;
+        raf = requestAnimationFrame(tick);
+      }
+    };
+
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => {
+      el.removeEventListener('wheel', onWheel);
+      cancelAnimationFrame(raf);
+    };
+  }, []);
 
   return (
     <motion.div
-      ref={overlayRef}
-      initial={{ clipPath: 'circle(0% at 50% 100%)' }}
-      animate={{ clipPath: 'circle(160% at 50% 100%)' }}
-      exit={{ clipPath: 'circle(0% at 50% 100%)' }}
-      transition={{ duration: 1.2, ease: [0.22, 1, 0.36, 1] }}
-      className="fixed inset-0 z-[100] bg-black overflow-y-auto"
+      custom={isSwitching}
+      variants={viewerVariants}
+      initial="enter"
+      animate="center"
+      exit="exit"
+      className="fixed inset-0 z-[100] overflow-hidden bg-black"
     >
-      {/* Content fades in after overlay expands */}
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.25, delay: 0.35 }}>
-        <button
-          onClick={onClose}
-          aria-label="Close"
-          className="fixed top-5 left-1/2 -translate-x-1/2 z-[110] w-9 h-9 rounded-full bg-[#f5c800] flex items-center justify-center text-black text-sm font-semibold hover:scale-105 active:scale-95 transition-transform"
-        >
-          ✕
-        </button>
-
-        <div className="flex flex-col items-center text-center pt-24 pb-14 px-8">
-          <div className="flex flex-wrap justify-center gap-2 mb-7">
-            {tags.map((tag) => (
-              <span key={tag} className="px-3 py-1 text-[13px] text-white/70 border border-white/20 rounded-full">
-                {tag}
-              </span>
-            ))}
-          </div>
-
-          <h1 className="text-white font-light tracking-tight leading-none mb-7" style={{ fontSize: 'clamp(52px, 9vw, 128px)' }}>
-            {project.title}
-          </h1>
-
-          <p className="text-neutral-400 text-[14px] leading-relaxed max-w-[480px]">{project.caseStudy.tagline}</p>
+      {/* One list, two directions: stacked and scrolled vertically on mobile,
+          a horizontal strip on desktop. */}
+      <div
+        ref={scrollerRef}
+        // The viewer is a DOM descendant of Lenis's wrapper, so touch events bubble to it
+        // and it blocks this element's native scrolling unless told to stand down.
+        data-lenis-prevent
+        className="absolute inset-0 no-scrollbar
+                   overflow-y-auto overflow-x-hidden md:overflow-y-hidden md:overflow-x-auto
+                   flex flex-col md:flex-row md:items-end
+                   gap-10 md:gap-6
+                   px-4 md:px-0 md:pl-8
+                   pt-20 md:pt-16 pb-28 md:pb-10"
+      >
+        {/* Mobile only — on desktop this moves up into the header row beside Close */}
+        <div className="shrink-0 md:hidden">
+          <ProjectInfo project={project} />
         </div>
 
-        {imageGroups.length > 0 && (
-          <div className="space-y-3 pb-24 px-8 max-w-[1920px] mx-auto">
-            {imageGroups.map((group, i) => {
-              if (Array.isArray(group)) {
-                return (
-                  <div key={i} className="grid grid-cols-2 gap-3">
-                    {group.map((img) => (
-                      <div key={img.src} className="relative aspect-square w-full overflow-hidden bg-neutral-900 rounded-md">
-                        <Image src={img.src} alt={img.alt} fill className="object-cover" />
-                      </div>
-                    ))}
-                  </div>
-                );
-              }
-              return (
-                <div key={group.src} className="relative aspect-[4/3] w-full overflow-hidden bg-neutral-900 rounded-md">
-                  <Image src={group.src} alt={group.alt} fill className="object-cover" />
-                </div>
-              );
-            })}
+        {images.map((img, i) => (
+          <div key={`${project.slug}-${i}`} className="shrink-0 w-full md:w-auto">
+            <Image
+              src={img.src}
+              alt={img.alt}
+              width={0}
+              height={0}
+              sizes="(max-width: 768px) 100vw, 70vw"
+              className="w-full h-auto md:h-[76vh] md:w-auto block"
+              priority
+            />
           </div>
-        )}
-      </motion.div>
+        ))}
+
+        {/* Desktop clips the oversized name to a sliver; mobile just wraps it */}
+        {/* Width follows the name so it's never clipped; the strip just scrolls further */}
+        <button
+          onClick={onNext}
+          className="shrink-0 text-left group flex flex-col justify-center
+                     w-full md:w-auto md:pl-[8vw] md:pr-[8vw] md:h-[76vh]"
+        >
+          <span className="block text-[14px] text-neutral-500 mb-2 md:mb-6 group-hover:text-white transition-colors duration-300">
+            Next project
+          </span>
+          <span
+            className="block text-white leading-[0.9] md:leading-[0.85] md:whitespace-nowrap"
+            style={{ fontSize: 'clamp(32px, 6vw, 96px)' }}
+          >
+            {nextProject.title}
+          </span>
+        </button>
+      </div>
+
+      {/* Desktop: the write-up stacks top-right, with Close alongside it */}
+      <div className="hidden md:flex absolute top-0 right-8 z-[300] items-start gap-8 pt-5">
+        <div className="flex flex-col text-[14px] text-white max-w-sm">
+          {project.caseStudy.year && (
+            <span className="text-neutral-500">{project.caseStudy.year}</span>
+          )}
+          <span>{project.title}</span>
+          <span className="mt-3 leading-relaxed">{project.caseStudy.tagline}</span>
+          {project.website && (
+            <a
+              href={project.website}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-3 self-start whitespace-nowrap hover:opacity-70 transition-opacity"
+            >
+              Website →
+            </a>
+          )}
+        </div>
+
+        <button
+          onClick={onClose}
+          className="shrink-0 text-[14px] text-white hover:opacity-70 transition-opacity"
+        >
+          Close
+        </button>
+      </div>
+
+      {/* Mobile keeps Close pinned to the bottom */}
+      <button
+        onClick={onClose}
+        className="md:hidden absolute z-[300] text-[14px] text-white hover:opacity-70 transition-opacity
+                   bottom-6 left-1/2 -translate-x-1/2"
+      >
+        Close
+      </button>
     </motion.div>
   );
 }
 
 export default function Home() {
   const [selected, setSelected] = useState<Project | null>(null);
+  // Distinguishes project-to-project (slide) from open/close (fade).
+  const [isSwitching, setIsSwitching] = useState(false);
+
+  const open = (project: Project) => {
+    setIsSwitching(false);
+    setSelected(project);
+  };
+
+  const close = () => {
+    setIsSwitching(false);
+    setSelected(null);
+  };
+
+  const goNext = (from: Project) => {
+    setIsSwitching(true);
+    setSelected(projects[(projects.indexOf(from) + 1) % projects.length]);
+  };
+
+  useEffect(() => {
+    const handler = () => close();
+    window.addEventListener('closeOverlay', handler);
+    return () => window.removeEventListener('closeOverlay', handler);
+  }, []);
+
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent('projectOpen', { detail: Boolean(selected) }));
+  }, [selected]);
 
   return (
     <>
       <div className="min-h-screen bg-black text-white">
-        <div className="pt-32 pb-24 px-6">
-          <p className="text-neutral-400 text-[21px] mt-6 leading-relaxed max-w-xl">Elevating brands and transforming identity through the power of visual communication. </p>
-        </div>
+        <h1 className="pt-32 pb-24 px-8 text-center text-[20px] uppercase leading-[1.5] max-w-2xl mx-auto">
+          A Designer Specialising In Brand Identity, Campaign And Digital.
+        </h1>
 
-        <div id="work" className="pb-16 px-6">
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-x-5 gap-y-12 items-start">
-            {projects.map((project) => (
-              <ProjectCard key={project.slug} project={project} onClick={() => setSelected(project)} />
-            ))}
-          </div>
+        <div id="work" className="px-8 pb-20 grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-10">
+          {projects.map((project) => (
+            <ProjectCard key={project.slug} project={project} onClick={() => open(project)} />
+          ))}
         </div>
       </div>
 
-      <AnimatePresence>{selected && <ProjectOverlay project={selected} onClose={() => setSelected(null)} />}</AnimatePresence>
+      {/* Keyed by slug so each project mounts fresh. Both are on screen during a switch,
+          so the outgoing and incoming strips slide past each other without a gap. */}
+      <AnimatePresence custom={isSwitching}>
+        {selected && (
+          <ProjectViewer
+            key={selected.slug}
+            project={selected}
+            nextProject={projects[(projects.indexOf(selected) + 1) % projects.length]}
+            isSwitching={isSwitching}
+            onNext={() => goNext(selected)}
+            onClose={close}
+          />
+        )}
+      </AnimatePresence>
     </>
   );
 }

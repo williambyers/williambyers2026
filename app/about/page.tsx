@@ -54,16 +54,16 @@ function Entry({
   link?: { label: string; href: string };
 }) {
   return (
-    <div className="group flex items-center gap-5 px-4 py-3 -mx-4 rounded-2xl hover:bg-white/5 transition-colors duration-200 cursor-pointer">
+    <div className="group flex items-center gap-5 px-4 py-3 -mx-4 rounded-2xl hover:bg-white/10 transition-colors duration-200 cursor-pointer">
       <div className={`w-[60px] h-[60px] rounded-2xl shrink-0 ${color} transition-transform duration-200 group-hover:scale-105`} />
 
       <div>
         <p className="text-white text-[15px] leading-snug">
-          {role} at <span className="font-semibold">{company}</span>
+          {role} at <span>{company}</span>
         </p>
         <p className="text-[14px] mt-0.5">
-          {meta && <span className="text-neutral-600">{meta}</span>}
-          {meta && <span className="text-neutral-600 mx-2">·</span>}
+          {meta && <span className="text-neutral-400">{meta}</span>}
+          {meta && <span className="text-neutral-400 mx-2">·</span>}
           <span className="text-neutral-500">{date}</span>
         </p>
         {link && (
@@ -84,7 +84,7 @@ className="inline-block mt-1 text-[13px] text-[#f5c800] hover:text-yellow-300 tr
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
-      <h2 className="text-white text-[15px] font-medium mb-8">{title}</h2>
+      <h2 className="text-white text-[15px] mb-8">{title}</h2>
       <div className="flex flex-col gap-7">{children}</div>
     </div>
   );
@@ -92,11 +92,11 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 export default function AboutPage() {
   return (
-    <div className="min-h-screen bg-black text-white flex justify-center px-8 pt-36 pb-24">
+    <div className="min-h-screen bg-[#0a0a0a] text-white flex justify-center px-6 pt-36 pb-24">
       <div className="w-full max-w-lg flex flex-col gap-16">
 
         <div>
-          <h2 className="text-white text-[15px] font-medium mb-6">About</h2>
+          <h2 className="text-white text-[15px] mb-6">About</h2>
           <p className="text-neutral-400 text-[14px] leading-relaxed mb-4">
             I&apos;m a graphic and digital designer based in England, specialising in brand identity, CGI product renders, and campaign creative. I care about work that feels considered — where the concept and the craft are both taken seriously.
           </p>

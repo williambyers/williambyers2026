@@ -9,8 +9,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: 'William Byers Designer',
-  description: 'William Byers Designer',
+  title: 'Office of William Byers',
+  description: 'Office of William Byers',
 };
 
 export default function RootLayout({
@@ -20,7 +20,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`${inter.variable} h-full antialiased`}>
-      <body className="h-full flex flex-col">
+      <body className={`h-full flex flex-col ${inter.className}`}>
         <SmoothScroll>{children}</SmoothScroll>
       </body>
     </html>
